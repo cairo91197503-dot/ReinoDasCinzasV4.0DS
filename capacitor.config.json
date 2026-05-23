@@ -1,0 +1,10 @@
+```json
+{
+  "appId": "com.reinodascinzas.app",
+  "appName": "Reino das Cinzas",
+  "webDir": ".",
+  "server": {
+    "androidScheme": "https"
+  }
+}
+```
