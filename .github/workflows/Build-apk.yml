@@ -12,10 +12,10 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout do código
-        uses: actions/checkout@v5   # ✅ Versão atualizada
+        uses: actions/checkout@v5
 
       - name: Configurar Node.js 22
-        uses: actions/setup-node@v5 # ✅ Versão atualizada
+        uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -24,6 +24,9 @@ jobs:
 
       - name: Instalar Capacitor CLI globalmente
         run: npm install -g @capacitor/cli
+
+      - name: Adicionar plataforma Android   # ✅ PASSO NOVO
+        run: npx cap add android
 
       - name: Sincronizar Capacitor
         run: npx cap sync android
