@@ -1,7 +1,7 @@
 {
   "appId": "com.reinodascinzas.app",
   "appName": "Reino das Cinzas",
-  "webDir": ".",
+  "webDir": "www",
   "server": {
     "androidScheme": "https"
   }
