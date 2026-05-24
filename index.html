@@ -14,11 +14,11 @@
     <div id="game-container"></div>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <script>
-        // ==================== REINO DAS CINZAS - VERSÃO FINAL ====================
+        // ==================== REINO DAS CINZAS - VERSÃO COMPLETA ====================
         const GAME_WIDTH = 480;
         const GAME_HEIGHT = 800;
 
-        // -------------------- Banco de Dados --------------------
+        // Banco de Dados
         const ItemDatabase = {
             'espada_curta': { name: 'Espada Curta', type: 'weapon', damage: 5, rarity: 'comum', value: 25 },
             'espada_longa': { name: 'Espada Longa', type: 'weapon', damage: 8, rarity: 'raro', value: 80 },
@@ -41,7 +41,7 @@
             { result: 'lamina_sombria', materials: ['espada_longa', 'essencia_fogo', 'essencia_gelo'], description: 'Lâmina Sombria' },
         ];
 
-        // -------------------- Estado Global --------------------
+        // Estado Global
         const GameState = {
             playerLevel: 1, playerXP: 0, xpToNext: 100, skillPoints: 0,
             playerStats: { strength: 5, defense: 3, agility: 4, mana: 10, luck: 2 },
@@ -108,7 +108,7 @@
         class BootScene extends Phaser.Scene {
             constructor() { super('BootScene'); }
             preload() {
-                // Geração de texturas essenciais
+                // Texturas base
                 const canvas = this.textures.createCanvas('player_down', 32, 32);
                 const ctx = canvas.getContext();
                 ctx.fillStyle = '#3a3a3a'; ctx.fillRect(10, 6, 12, 18);
@@ -126,6 +126,13 @@
                 const pc = partCanvas.getContext();
                 pc.fillStyle = '#ffffff'; pc.fillRect(0, 0, 4, 4);
                 partCanvas.refresh();
+
+                const enemyCanvas = this.textures.createCanvas('enemy', 32, 32);
+                const ec = enemyCanvas.getContext();
+                ec.fillStyle = '#1a1a2e'; ec.fillRect(8, 4, 16, 20);
+                ec.fillStyle = '#4a0000'; ec.fillRect(12, 0, 8, 6);
+                ec.fillStyle = '#ff0000'; ec.fillRect(14, 2, 3, 2);
+                enemyCanvas.refresh();
             }
             create() {
                 loadGame();
@@ -140,19 +147,15 @@
             create() {
                 const { width, height } = this.cameras.main;
                 this.cameras.main.setBackgroundColor('#0a0a0a');
-
                 this.add.text(width / 2, height / 2 - 80, 'REINO\nDAS\nCINZAS', {
                     fontSize: '48px', color: '#c9a84c', stroke: '#000', strokeThickness: 8, align: 'center', lineSpacing: 6
                 }).setOrigin(0.5);
-
                 this.add.text(width / 2, height / 2 + 20, 'O Herdeiro das Cinzas', {
                     fontSize: '18px', color: '#8b0000', stroke: '#000', strokeThickness: 4
                 }).setOrigin(0.5);
-
                 const startBtn = this.add.text(width / 2, height / 2 + 100, '⚔️ INICIAR JORNADA', {
                     fontSize: '24px', color: '#d4c48a', stroke: '#000', strokeThickness: 6, padding: { x: 20, y: 10 }
                 }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
                 startBtn.on('pointerover', () => startBtn.setColor('#ffffff'));
                 startBtn.on('pointerout', () => startBtn.setColor('#d4c48a'));
                 startBtn.on('pointerdown', () => {
@@ -162,7 +165,7 @@
             }
         }
 
-        // ==================== GAME SCENE (com controles mobile e mundo) ====================
+        // ==================== GAME SCENE (completa) ====================
         class GameScene extends Phaser.Scene {
             constructor() { super('GameScene'); }
             create() {
@@ -170,42 +173,53 @@
                 this.cameras.main.setBackgroundColor('#1a1a2e');
                 this.cameras.main.fadeIn(500);
 
-                // ----- MUNDO SIMPLES -----
-                this.player = this.physics.add.sprite(width / 2, height / 2 - 50, 'player_down');
-                this.player.setCollideWorldBounds(true);
+                // Mundo (mapa procedural simplificado)
+                this.mapWidth = 2000;
+                this.mapHeight = 2000;
+                this.physics.world.setBounds(0, 0, this.mapWidth, this.mapHeight);
+
+                // Jogador
+                this.player = this.physics.add.sprite(400, 500, 'player_down');
+                this.player.setCollideWorldBounds(true).setSize(20, 28).setDepth(10);
                 this.player.hp = GameState.playerHP;
                 this.player.maxHp = GameState.playerMaxHP;
-                this.player.direction = 'down';
-                this.player.attackCooldown = 0;
                 this.player.stamina = GameState.playerStamina;
                 this.player.maxStamina = GameState.playerMaxStamina;
+                this.player.attackCooldown = 0;
+                this.player.alive = true;
 
-                // Corações (HUD)
+                // Grupos
+                this.enemies = this.physics.add.group();
+                this.drops = this.physics.add.group();
+
+                // Spawn de elementos
+                this.spawnEnemy(600, 400, { hp: 3, dropTable: ['ferro_bruto', 'couro'] });
+                this.spawnEnemy(800, 600, { hp: 5, dropTable: ['essencia_fogo'] });
+
+                // Colisões
+                this.physics.add.overlap(this.player, this.enemies, this.onHitEnemy, null, this);
+                this.physics.add.overlap(this.player, this.drops, this.onCollectDrop, null, this);
+
+                // HUD
                 this.hearts = [];
                 for (let i = 0; i < this.player.maxHp; i++) {
                     const heart = this.add.image(20 + i * 20, 20, 'heart_full').setScrollFactor(0).setDepth(100);
                     this.hearts.push(heart);
                 }
 
-                // Texto de instrução
-                this.add.text(width / 2, 55, 'Joystick: mover | ⚔️: atacar | 👆: interagir', {
-                    fontSize: '11px', color: '#aaaaaa', stroke: '#000', strokeThickness: 2
-                }).setOrigin(0.5).setDepth(100);
+                // Minimapa
+                this.minimapGraphics = this.add.graphics().setScrollFactor(0).setDepth(150);
 
-                // ----- JOYSTICK VIRTUAL (movimento mais lento) -----
+                // Controles mobile
                 this.joystickActive = false;
-                this.joystickStart = { x: 0, y: 0 };
                 this.mobileDirection = { x: 0, y: 0 };
                 this.moveSpeed = 2.2;
-
                 this.joystickBase = this.add.circle(80, height - 140, 40, 0x000000, 0.3).setScrollFactor(0).setDepth(200).setInteractive();
                 this.joystickThumb = this.add.circle(80, height - 140, 20, 0xffffff, 0.4).setScrollFactor(0).setDepth(201);
-
                 this.joystickBase.on('pointerdown', (pointer) => {
                     this.joystickActive = true;
                     this.joystickStart = { x: pointer.x, y: pointer.y };
                 });
-
                 this.input.on('pointermove', (pointer) => {
                     if (!this.joystickActive) return;
                     const dx = pointer.x - this.joystickStart.x;
@@ -215,79 +229,203 @@
                     const tx = this.joystickStart.x + Math.cos(angle) * dist;
                     const ty = this.joystickStart.y + Math.sin(angle) * dist;
                     this.joystickThumb.setPosition(tx, ty);
-                    this.mobileDirection = {
-                        x: Math.cos(angle) * (dist / 35),
-                        y: Math.sin(angle) * (dist / 35)
-                    };
+                    this.mobileDirection = { x: Math.cos(angle) * (dist / 35), y: Math.sin(angle) * (dist / 35) };
                 });
-
                 this.input.on('pointerup', () => {
                     this.joystickActive = false;
                     this.joystickThumb.setPosition(80, height - 140);
                     this.mobileDirection = { x: 0, y: 0 };
                 });
 
-                // ----- BOTÃO DE ATAQUE (⚔️) -----
-                const atkBtn = this.add.text(width - 70, height - 160, '⚔️', {
-                    fontSize: '32px', backgroundColor: 'rgba(0,0,0,0.5)', padding: { x: 12, y: 8 }
-                }).setOrigin(0.5).setScrollFactor(0).setDepth(200).setInteractive();
-                atkBtn.on('pointerdown', () => this.playerAttack());
+                // Botões
+                const btnStyle = { fontSize: '28px', backgroundColor: 'rgba(0,0,0,0.5)', padding: { x: 10, y: 6 } };
+                this.atkBtn = this.add.text(width - 70, height - 180, '⚔️', btnStyle).setOrigin(0.5).setScrollFactor(0).setDepth(200).setInteractive();
+                this.atkBtn.on('pointerdown', () => this.playerAttack());
 
-                // ----- BOTÃO DE INTERAÇÃO (👆) -----
-                const interactBtn = this.add.text(width - 70, height - 90, '👆', {
-                    fontSize: '28px', backgroundColor: 'rgba(0,0,0,0.5)', padding: { x: 10, y: 6 }
-                }).setOrigin(0.5).setScrollFactor(0).setDepth(200).setInteractive();
-                interactBtn.on('pointerdown', () => this.showActionText('Interagindo...', '#ffcc00'));
+                this.interactBtn = this.add.text(width - 70, height - 110, '👆', btnStyle).setOrigin(0.5).setScrollFactor(0).setDepth(200).setInteractive();
+                this.interactBtn.on('pointerdown', () => this.interact());
+
+                this.invBtn = this.add.text(width - 130, height - 110, '🎒', btnStyle).setOrigin(0.5).setScrollFactor(0).setDepth(200).setInteractive();
+                this.invBtn.on('pointerdown', () => this.scene.launch('InventoryScene'));
+
+                this.questBtn = this.add.text(width - 130, height - 180, '📜', btnStyle).setOrigin(0.5).setScrollFactor(0).setDepth(200).setInteractive();
+                this.questBtn.on('pointerdown', () => this.scene.launch('QuestLogScene'));
+            }
+
+            spawnEnemy(x, y, config = {}) {
+                const enemy = this.physics.add.sprite(x, y, 'enemy');
+                enemy.hp = config.hp || 3;
+                enemy.maxHp = config.hp || 3;
+                enemy.damage = 1;
+                enemy.aggroRange = 150;
+                enemy.speed = 40;
+                enemy.attackCooldown = 0;
+                enemy.dropTable = config.dropTable || [];
+                enemy.healthBar = this.add.graphics().setDepth(11);
+                this.enemies.add(enemy);
+            }
+
+            onHitEnemy(player, enemy) {
+                if (player.invulnerable || !player.alive) return;
+                if (enemy.attackCooldown > 0) return;
+                enemy.attackCooldown = 40;
+                player.hp--;
+                player.invulnerable = true;
+                player.setTintFill(0xff0000);
+                this.time.delayedCall(500, () => { player.invulnerable = false; player.clearTint(); });
+                if (player.hp <= 0) this.playerDeath();
+            }
+
+            onCollectDrop(player, drop) {
+                const itemId = drop.dropItemId;
+                if (itemId === 'gold') {
+                    GameState.gold += Phaser.Math.Between(10, 30);
+                    this.showFloatingText('+' + GameState.gold + ' ouro', '#ffcc00');
+                } else {
+                    addToInventory(itemId, 1);
+                    this.showFloatingText('+' + (ItemDatabase[itemId]?.name || itemId), '#44ff44');
+                }
+                drop.destroy();
             }
 
             playerAttack() {
                 if (this.player.attackCooldown > 0) return;
-                this.player.attackCooldown = 30;
-
+                this.player.attackCooldown = 20;
                 const slash = this.add.circle(this.player.x, this.player.y - 20, 18, 0xffcc00, 0.7).setDepth(50);
-                this.tweens.add({
-                    targets: slash, alpha: 0, scale: 1.5, duration: 200,
-                    onComplete: () => slash.destroy()
+                this.tweens.add({ targets: slash, alpha: 0, scale: 1.5, duration: 200, onComplete: () => slash.destroy() });
+                this.enemies.getChildren().forEach(enemy => {
+                    const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+                    if (dist < 35) {
+                        enemy.hp -= getEquippedWeaponDamage() + GameState.playerStats.strength;
+                        if (enemy.hp <= 0) this.killEnemy(enemy);
+                    }
                 });
-                this.showActionText('⚔️ Ataque!', '#ff4444');
             }
 
-            showActionText(text, color) {
-                const { width, height } = this.cameras.main;
-                const txt = this.add.text(width / 2, height / 2 - 20, text, {
+            killEnemy(enemy) {
+                if (Math.random() < 0.5 && enemy.dropTable.length > 0) {
+                    const itemId = enemy.dropTable[Math.floor(Math.random() * enemy.dropTable.length)];
+                    const drop = this.physics.add.sprite(enemy.x, enemy.y, 'particle').setDepth(5);
+                    drop.dropItemId = itemId;
+                    this.drops.add(drop);
+                } else if (Math.random() < 0.7) {
+                    const drop = this.physics.add.sprite(enemy.x, enemy.y, 'particle').setDepth(5);
+                    drop.dropItemId = 'gold';
+                    this.drops.add(drop);
+                }
+                GameState.playerXP += 30;
+                if (GameState.playerXP >= GameState.xpToNext) this.levelUp();
+                enemy.destroy();
+            }
+
+            levelUp() {
+                GameState.playerLevel++;
+                GameState.playerXP -= GameState.xpToNext;
+                GameState.xpToNext = Math.floor(GameState.xpToNext * 1.5);
+                GameState.playerMaxHP++;
+                GameState.playerHP = GameState.playerMaxHP;
+                GameState.playerMaxStamina += 10;
+                GameState.playerStamina = GameState.playerMaxStamina;
+                GameState.skillPoints += 2;
+                this.showFloatingText('⬆ LEVEL UP! ⬆', '#ffcc00');
+            }
+
+            playerDeath() {
+                this.player.alive = false;
+                this.player.setTintFill(0x333333);
+                this.time.delayedCall(1000, () => {
+                    this.player.setPosition(400, 500);
+                    this.player.hp = Math.ceil(this.player.maxHp / 2);
+                    this.player.alive = true;
+                    this.player.clearTint();
+                });
+            }
+
+            interact() {
+                this.showFloatingText('Interagindo...', '#ffcc00');
+            }
+
+            showFloatingText(text, color) {
+                const txt = this.add.text(this.player.x, this.player.y - 30, text, {
                     fontSize: '18px', color: color, stroke: '#000', strokeThickness: 4
                 }).setOrigin(0.5).setDepth(300);
-                this.tweens.add({
-                    targets: txt, y: txt.y - 30, alpha: 0, duration: 800,
-                    onComplete: () => txt.destroy()
-                });
+                this.tweens.add({ targets: txt, y: txt.y - 30, alpha: 0, duration: 1000, onComplete: () => txt.destroy() });
             }
 
-            update(time, delta) {
+            update() {
                 if (this.joystickActive) {
                     const threshold = 0.15;
-                    let moveX = this.mobileDirection.x;
-                    let moveY = this.mobileDirection.y;
-                    if (Math.abs(moveX) < threshold) moveX = 0;
-                    if (Math.abs(moveY) < threshold) moveY = 0;
-                    this.player.x += moveX * this.moveSpeed;
-                    this.player.y += moveY * this.moveSpeed;
+                    let mx = this.mobileDirection.x, my = this.mobileDirection.y;
+                    if (Math.abs(mx) < threshold) mx = 0;
+                    if (Math.abs(my) < threshold) my = 0;
+                    this.player.x += mx * this.moveSpeed;
+                    this.player.y += my * this.moveSpeed;
                 }
-
-                if (this.mobileDirection.y < -0.3) this.player.direction = 'up';
-                else if (this.mobileDirection.y > 0.3) this.player.direction = 'down';
-                else if (this.mobileDirection.x < -0.3) this.player.direction = 'left';
-                else if (this.mobileDirection.x > 0.3) this.player.direction = 'right';
-
+                this.enemies.getChildren().forEach(enemy => {
+                    const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+                    if (dist < enemy.aggroRange && dist > 30) {
+                        const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+                        enemy.x += Math.cos(angle) * enemy.speed * 0.03;
+                        enemy.y += Math.sin(angle) * enemy.speed * 0.03;
+                    }
+                    if (enemy.attackCooldown > 0) enemy.attackCooldown--;
+                });
                 if (this.player.attackCooldown > 0) this.player.attackCooldown--;
-
                 this.hearts.forEach((heart, i) => {
                     heart.setTexture(i < this.player.hp ? 'heart_full' : 'heart_empty');
                 });
             }
         }
 
-        // ==================== CONFIGURAÇÃO DO JOGO ====================
+        // ==================== CENAS EXTRAS (inventário, quests, etc) ====================
+        class InventoryScene extends Phaser.Scene {
+            constructor() { super('InventoryScene'); }
+            create() {
+                const { width, height } = this.cameras.main;
+                this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8);
+                this.add.text(width / 2, 30, '🎒 INVENTÁRIO', { fontSize: '24px', color: '#c9a84c' }).setOrigin(0.5);
+                let y = 80;
+                GameState.inventory.forEach(item => {
+                    const data = ItemDatabase[item.id];
+                    this.add.text(30, y, `${data?.name || item.id} x${item.quantity}`, { fontSize: '14px', color: '#ffffff' });
+                    if (data?.type === 'weapon' && GameState.equipment.weapon !== item.id) {
+                        const equipBtn = this.add.text(350, y, 'Equipar', { fontSize: '12px', color: '#ffcc00', backgroundColor: '#333' }).setInteractive();
+                        equipBtn.on('pointerdown', () => {
+                            GameState.equipment.weapon = item.id;
+                            this.scene.stop();
+                        });
+                    } else if (data?.type === 'potion') {
+                        const useBtn = this.add.text(350, y, 'Usar', { fontSize: '12px', color: '#44ff44', backgroundColor: '#333' }).setInteractive();
+                        useBtn.on('pointerdown', () => {
+                            if (data.heal) {
+                                const gs = this.scene.get('GameScene');
+                                gs.player.hp = Math.min(gs.player.hp + data.heal, gs.player.maxHp);
+                            }
+                            removeFromInventory(item.id, 1);
+                            this.scene.restart();
+                        });
+                    }
+                    y += 30;
+                });
+                const closeBtn = this.add.text(width / 2, height - 40, 'Fechar', { fontSize: '18px', color: '#ff4444' }).setOrigin(0.5).setInteractive();
+                closeBtn.on('pointerdown', () => this.scene.stop());
+            }
+        }
+
+        class QuestLogScene extends Phaser.Scene {
+            constructor() { super('QuestLogScene'); }
+            create() {
+                const { width, height } = this.cameras.main;
+                this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8);
+                this.add.text(width / 2, 30, '📜 MISSÕES', { fontSize: '24px', color: '#c9a84c' }).setOrigin(0.5);
+                this.add.text(30, 80, `Principal: ${GameState.quests.main.title} (Etapa ${GameState.quests.main.step})`, { fontSize: '14px', color: '#ffffff' });
+                this.add.text(30, 120, `Reputação: Arthon ${GameState.reputation.arthon}`, { fontSize: '14px', color: '#cccccc' });
+                const closeBtn = this.add.text(width / 2, height - 40, 'Fechar', { fontSize: '18px', color: '#ff4444' }).setOrigin(0.5).setInteractive();
+                closeBtn.on('pointerdown', () => this.scene.stop());
+            }
+        }
+
+        // ==================== CONFIGURAÇÃO FINAL ====================
         const config = {
             type: Phaser.AUTO,
             parent: 'game-container',
@@ -295,20 +433,11 @@
             height: GAME_HEIGHT,
             pixelArt: true,
             roundPixels: true,
-            scale: {
-                mode: Phaser.Scale.FIT,
-                autoCenter: Phaser.Scale.CENTER_BOTH,
-                width: GAME_WIDTH,
-                height: GAME_HEIGHT
-            },
-            physics: {
-                default: 'arcade',
-                arcade: { gravity: { y: 0 }, debug: false }
-            },
-            scene: [BootScene, MenuScene, GameScene],
+            scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: GAME_WIDTH, height: GAME_HEIGHT },
+            physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
+            scene: [BootScene, MenuScene, GameScene, InventoryScene, QuestLogScene],
             backgroundColor: '#0a0a0a'
         };
-
         const game = new Phaser.Game(config);
     </script>
 </body>
