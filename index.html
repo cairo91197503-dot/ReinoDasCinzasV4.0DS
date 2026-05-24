@@ -14,182 +14,280 @@
     <div id="game-container"></div>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <script>
-        // ==================== CONFIGURAÇÃO ====================
+        // ==================== REINO DAS CINZAS - VERSÃO FINAL ====================
         const GAME_WIDTH = 480;
         const GAME_HEIGHT = 800;
 
-        const GameState = {
-            playerLevel:1, playerXP:0, xpToNext:100, skillPoints:0,
-            playerStats:{ strength:5, defense:3, agility:4, mana:10, luck:2 },
-            playerHP:5, playerMaxHP:5, playerStamina:100, playerMaxStamina:100,
-            gold:50,
-            inventory:[{id:'espada_curta',quantity:1},{id:'pocao_vida',quantity:3}],
-            equipment:{ weapon:'espada_curta', armor:null, accessory:null },
-            reputation:{arthon:10,korag:0,eldryn:0,north:0,stormIsle:0},
-            quests:{main:{id:'main_01',step:0,title:'O Despertar das Cinzas'},side:[]},
-            choices:{sparedVillage:null,executedKing:false,usedForbiddenMagic:false,freedDragons:false},
-            currentRegion:'arthon', gameTime:0, dragonsDiscovered:0, bossesDefeated:[], ending:null,
-            discoveredRecipes:['pocao_vida_grande'], lastSaveTime:null, dragonRiding:false
+        // -------------------- Banco de Dados --------------------
+        const ItemDatabase = {
+            'espada_curta': { name: 'Espada Curta', type: 'weapon', damage: 5, rarity: 'comum', value: 25 },
+            'espada_longa': { name: 'Espada Longa', type: 'weapon', damage: 8, rarity: 'raro', value: 80 },
+            'lamina_sombria': { name: 'Lâmina Sombria', type: 'weapon', damage: 14, rarity: 'épico', value: 300 },
+            'pocao_vida': { name: 'Poção de Vida', type: 'potion', heal: 2, rarity: 'comum', value: 15 },
+            'pocao_vida_grande': { name: 'Poção de Vida Grande', type: 'potion', heal: 5, rarity: 'raro', value: 45 },
+            'pocao_stamina': { name: 'Poção de Vigor', type: 'potion', staminaRestore: 50, rarity: 'comum', value: 12 },
+            'armadura_couro': { name: 'Armadura de Couro', type: 'armor', defense: 3, rarity: 'comum', value: 40 },
+            'armadura_ferro': { name: 'Armadura de Ferro', type: 'armor', defense: 6, rarity: 'raro', value: 120 },
+            'amuleto_cinzas': { name: 'Amuleto das Cinzas', type: 'accessory', luck: 3, rarity: 'épico', value: 200 },
+            'essencia_fogo': { name: 'Essência de Fogo', type: 'crafting', rarity: 'raro', value: 50 },
+            'essencia_gelo': { name: 'Essência de Gelo', type: 'crafting', rarity: 'raro', value: 50 },
+            'ferro_bruto': { name: 'Ferro Bruto', type: 'crafting', rarity: 'comum', value: 10 },
+            'couro': { name: 'Couro', type: 'crafting', rarity: 'comum', value: 8 },
         };
+
+        const CraftingRecipes = [
+            { result: 'pocao_vida_grande', materials: ['pocao_vida', 'pocao_vida', 'essencia_fogo'], description: 'Poção de Vida Grande' },
+            { result: 'armadura_ferro', materials: ['armadura_couro', 'ferro_bruto', 'ferro_bruto'], description: 'Armadura de Ferro' },
+            { result: 'lamina_sombria', materials: ['espada_longa', 'essencia_fogo', 'essencia_gelo'], description: 'Lâmina Sombria' },
+        ];
+
+        // -------------------- Estado Global --------------------
+        const GameState = {
+            playerLevel: 1, playerXP: 0, xpToNext: 100, skillPoints: 0,
+            playerStats: { strength: 5, defense: 3, agility: 4, mana: 10, luck: 2 },
+            playerHP: 5, playerMaxHP: 5, playerStamina: 100, playerMaxStamina: 100,
+            gold: 50,
+            inventory: [
+                { id: 'espada_curta', quantity: 1 },
+                { id: 'pocao_vida', quantity: 3 },
+                { id: 'couro', quantity: 2 }
+            ],
+            equipment: { weapon: 'espada_curta', armor: null, accessory: null },
+            reputation: { arthon: 10, korag: 0, eldryn: 0, north: 0, stormIsle: 0 },
+            quests: { main: { id: 'main_01', step: 0, title: 'O Despertar das Cinzas', completed: false }, side: [] },
+            completedQuests: [],
+            choices: { sparedVillage: null, executedKing: false, usedForbiddenMagic: false, freedDragons: false },
+            currentRegion: 'arthon', gameTime: 0, dragonsDiscovered: 0, bossesDefeated: [], ending: null,
+            discoveredRecipes: ['pocao_vida_grande'], lastSaveTime: null, dragonRiding: false
+        };
+
+        function getEquippedWeaponDamage() {
+            const wpnId = GameState.equipment.weapon;
+            return wpnId && ItemDatabase[wpnId] ? ItemDatabase[wpnId].damage || 3 : 3;
+        }
+        function getEquippedArmorDefense() {
+            const armId = GameState.equipment.armor;
+            return armId && ItemDatabase[armId] ? ItemDatabase[armId].defense || 0 : 0;
+        }
+        function getTotalStat(statName) {
+            let total = GameState.playerStats[statName] || 0;
+            ['weapon', 'armor', 'accessory'].forEach(slot => {
+                const id = GameState.equipment[slot];
+                if (id && ItemDatabase[id] && ItemDatabase[id][statName]) total += ItemDatabase[id][statName];
+            });
+            return total;
+        }
+        function addToInventory(itemId, qty = 1) {
+            const existing = GameState.inventory.find(i => i.id === itemId);
+            if (existing) existing.quantity += qty;
+            else GameState.inventory.push({ id: itemId, quantity: qty });
+        }
+        function removeFromInventory(itemId, qty = 1) {
+            const existing = GameState.inventory.find(i => i.id === itemId);
+            if (!existing) return false;
+            existing.quantity -= qty;
+            if (existing.quantity <= 0) GameState.inventory = GameState.inventory.filter(i => i.id !== itemId);
+            return true;
+        }
+        function countInInventory(itemId) {
+            const existing = GameState.inventory.find(i => i.id === itemId);
+            return existing ? existing.quantity : 0;
+        }
+        function saveGame() {
+            GameState.lastSaveTime = Date.now();
+            localStorage.setItem('reino_das_cinzas_save', JSON.stringify(GameState));
+            return true;
+        }
+        function loadGame() {
+            const saved = localStorage.getItem('reino_das_cinzas_save');
+            if (saved) { try { Object.assign(GameState, JSON.parse(saved)); return true; } catch (e) { return false; } }
+            return false;
+        }
 
         // ==================== BOOT SCENE ====================
         class BootScene extends Phaser.Scene {
-            constructor(){ super('BootScene'); }
-            preload(){
-                // Textura do jogador
-                const canvas = this.textures.createCanvas('player_down',32,32);
+            constructor() { super('BootScene'); }
+            preload() {
+                // Geração de texturas essenciais
+                const canvas = this.textures.createCanvas('player_down', 32, 32);
                 const ctx = canvas.getContext();
-                ctx.fillStyle='#3a3a3a'; ctx.fillRect(10,6,12,18);
-                ctx.fillStyle='#1a1a1a'; ctx.fillRect(8,24,16,8);
-                ctx.fillStyle='#6b3a2a'; ctx.fillRect(12,2,8,6);
-                ctx.fillStyle='#c9a84c'; ctx.fillRect(10,8,4,4);
+                ctx.fillStyle = '#3a3a3a'; ctx.fillRect(10, 6, 12, 18);
+                ctx.fillStyle = '#1a1a1a'; ctx.fillRect(8, 24, 16, 8);
+                ctx.fillStyle = '#6b3a2a'; ctx.fillRect(12, 2, 8, 6);
+                ctx.fillStyle = '#c9a84c'; ctx.fillRect(10, 8, 4, 4);
                 canvas.refresh();
 
-                // Coração
-                const heartCanvas = this.textures.createCanvas('heart_full',16,16);
+                const heartCanvas = this.textures.createCanvas('heart_full', 16, 16);
                 const hc = heartCanvas.getContext();
-                hc.fillStyle='#cc0000'; hc.fillRect(4,3,8,10);
+                hc.fillStyle = '#cc0000'; hc.fillRect(4, 3, 8, 10);
                 heartCanvas.refresh();
+
+                const partCanvas = this.textures.createCanvas('particle', 4, 4);
+                const pc = partCanvas.getContext();
+                pc.fillStyle = '#ffffff'; pc.fillRect(0, 0, 4, 4);
+                partCanvas.refresh();
             }
-            create(){
+            create() {
+                loadGame();
                 this.cameras.main.fadeIn(500);
-                this.time.delayedCall(500, ()=> this.scene.start('MenuScene'));
+                this.time.delayedCall(500, () => this.scene.start('MenuScene'));
             }
         }
 
         // ==================== MENU SCENE ====================
         class MenuScene extends Phaser.Scene {
-            constructor(){ super('MenuScene'); }
-            create(){
-                const {width,height} = this.cameras.main;
+            constructor() { super('MenuScene'); }
+            create() {
+                const { width, height } = this.cameras.main;
                 this.cameras.main.setBackgroundColor('#0a0a0a');
 
-                // Título centralizado
-                this.add.text(width/2, height/2 - 80, 'REINO\nDAS\nCINZAS', {
-                    fontSize:'48px', color:'#c9a84c', stroke:'#000', strokeThickness:8, align:'center', lineSpacing:6
+                this.add.text(width / 2, height / 2 - 80, 'REINO\nDAS\nCINZAS', {
+                    fontSize: '48px', color: '#c9a84c', stroke: '#000', strokeThickness: 8, align: 'center', lineSpacing: 6
                 }).setOrigin(0.5);
 
-                // Subtítulo
-                this.add.text(width/2, height/2 + 20, 'O Herdeiro das Cinzas', {
-                    fontSize:'18px', color:'#8b0000', stroke:'#000', strokeThickness:4
+                this.add.text(width / 2, height / 2 + 20, 'O Herdeiro das Cinzas', {
+                    fontSize: '18px', color: '#8b0000', stroke: '#000', strokeThickness: 4
                 }).setOrigin(0.5);
 
-                // Botão de iniciar
-                const startBtn = this.add.text(width/2, height/2 + 100, '⚔️ INICIAR JORNADA', {
-                    fontSize:'24px', color:'#d4c48a', stroke:'#000', strokeThickness:6, padding:{x:20,y:10}
-                }).setOrigin(0.5).setInteractive({useHandCursor:true});
+                const startBtn = this.add.text(width / 2, height / 2 + 100, '⚔️ INICIAR JORNADA', {
+                    fontSize: '24px', color: '#d4c48a', stroke: '#000', strokeThickness: 6, padding: { x: 20, y: 10 }
+                }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-                startBtn.on('pointerover', ()=> startBtn.setColor('#ffffff'));
-                startBtn.on('pointerout', ()=> startBtn.setColor('#d4c48a'));
-                startBtn.on('pointerdown', ()=>{
+                startBtn.on('pointerover', () => startBtn.setColor('#ffffff'));
+                startBtn.on('pointerout', () => startBtn.setColor('#d4c48a'));
+                startBtn.on('pointerdown', () => {
                     this.cameras.main.fadeOut(500);
-                    this.time.delayedCall(500, ()=> this.scene.start('GameScene'));
+                    this.time.delayedCall(500, () => this.scene.start('GameScene'));
                 });
             }
         }
 
-        // ==================== GAME SCENE (COM CONTROLES MOBILE) ====================
+        // ==================== GAME SCENE (com controles mobile e mundo) ====================
         class GameScene extends Phaser.Scene {
-            constructor(){ super('GameScene'); }
-            create(){
-                const {width,height} = this.cameras.main;
+            constructor() { super('GameScene'); }
+            create() {
+                const { width, height } = this.cameras.main;
                 this.cameras.main.setBackgroundColor('#1a1a2e');
                 this.cameras.main.fadeIn(500);
 
-                // Mundo simples
-                this.player = this.physics.add.sprite(width/2, height/2, 'player_down');
+                // ----- MUNDO SIMPLES -----
+                this.player = this.physics.add.sprite(width / 2, height / 2 - 50, 'player_down');
                 this.player.setCollideWorldBounds(true);
                 this.player.hp = GameState.playerHP;
                 this.player.maxHp = GameState.playerMaxHP;
                 this.player.direction = 'down';
+                this.player.attackCooldown = 0;
+                this.player.stamina = GameState.playerStamina;
+                this.player.maxStamina = GameState.playerMaxStamina;
 
                 // Corações (HUD)
                 this.hearts = [];
-                for(let i=0;i<this.player.maxHp;i++){
-                    const heart = this.add.image(20 + i*20, 20, 'heart_full').setScrollFactor(0).setDepth(100);
+                for (let i = 0; i < this.player.maxHp; i++) {
+                    const heart = this.add.image(20 + i * 20, 20, 'heart_full').setScrollFactor(0).setDepth(100);
                     this.hearts.push(heart);
                 }
 
-                // Texto de instrução (centralizado no topo)
-                this.add.text(width/2, 60, 'Toque no joystick para mover', {
-                    fontSize:'14px', color:'#cccccc', stroke:'#000', strokeThickness:3
+                // Texto de instrução
+                this.add.text(width / 2, 55, 'Joystick: mover | ⚔️: atacar | 👆: interagir', {
+                    fontSize: '11px', color: '#aaaaaa', stroke: '#000', strokeThickness: 2
                 }).setOrigin(0.5).setDepth(100);
 
-                // ---- CONTROLES MOBILE ----
+                // ----- JOYSTICK VIRTUAL (movimento mais lento) -----
                 this.joystickActive = false;
-                this.joystickStart = { x:0, y:0 };
-                this.mobileDirection = { x:0, y:0 };
+                this.joystickStart = { x: 0, y: 0 };
+                this.mobileDirection = { x: 0, y: 0 };
+                this.moveSpeed = 2.2;
 
-                // Base do joystick (canto inferior esquerdo)
-                this.joystickBase = this.add.circle(80, height-140, 40, 0x000000, 0.3).setScrollFactor(0).setDepth(200).setInteractive();
-                this.joystickThumb = this.add.circle(80, height-140, 20, 0xffffff, 0.4).setScrollFactor(0).setDepth(201);
+                this.joystickBase = this.add.circle(80, height - 140, 40, 0x000000, 0.3).setScrollFactor(0).setDepth(200).setInteractive();
+                this.joystickThumb = this.add.circle(80, height - 140, 20, 0xffffff, 0.4).setScrollFactor(0).setDepth(201);
 
-                // Eventos do joystick
-                this.joystickBase.on('pointerdown', (pointer)=>{
+                this.joystickBase.on('pointerdown', (pointer) => {
                     this.joystickActive = true;
                     this.joystickStart = { x: pointer.x, y: pointer.y };
                 });
 
-                this.input.on('pointermove', (pointer)=>{
-                    if(!this.joystickActive) return;
+                this.input.on('pointermove', (pointer) => {
+                    if (!this.joystickActive) return;
                     const dx = pointer.x - this.joystickStart.x;
                     const dy = pointer.y - this.joystickStart.y;
-                    const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 35);
+                    const dist = Math.min(Math.sqrt(dx * dx + dy * dy), 35);
                     const angle = Math.atan2(dy, dx);
-                    const tx = this.joystickStart.x + Math.cos(angle)*dist;
-                    const ty = this.joystickStart.y + Math.sin(angle)*dist;
+                    const tx = this.joystickStart.x + Math.cos(angle) * dist;
+                    const ty = this.joystickStart.y + Math.sin(angle) * dist;
                     this.joystickThumb.setPosition(tx, ty);
                     this.mobileDirection = {
-                        x: Math.cos(angle) * (dist/35),
-                        y: Math.sin(angle) * (dist/35)
+                        x: Math.cos(angle) * (dist / 35),
+                        y: Math.sin(angle) * (dist / 35)
                     };
                 });
 
-                this.input.on('pointerup', ()=>{
+                this.input.on('pointerup', () => {
                     this.joystickActive = false;
-                    this.joystickThumb.setPosition(80, height-140);
-                    this.mobileDirection = { x:0, y:0 };
+                    this.joystickThumb.setPosition(80, height - 140);
+                    this.mobileDirection = { x: 0, y: 0 };
                 });
 
-                // Botão de ação (atacar) - canto inferior direito
-                const atkBtn = this.add.text(width-70, height-160, '⚔️', {
-                    fontSize:'32px', backgroundColor:'rgba(0,0,0,0.5)', padding:{x:12,y:8}
+                // ----- BOTÃO DE ATAQUE (⚔️) -----
+                const atkBtn = this.add.text(width - 70, height - 160, '⚔️', {
+                    fontSize: '32px', backgroundColor: 'rgba(0,0,0,0.5)', padding: { x: 12, y: 8 }
                 }).setOrigin(0.5).setScrollFactor(0).setDepth(200).setInteractive();
-                atkBtn.on('pointerdown', ()=>{
-                    // Ação de ataque (futuro)
-                    console.log('Atacar!');
-                });
+                atkBtn.on('pointerdown', () => this.playerAttack());
 
-                // Botão de interação
-                const interactBtn = this.add.text(width-70, height-90, '👆', {
-                    fontSize:'28px', backgroundColor:'rgba(0,0,0,0.5)', padding:{x:10,y:6}
+                // ----- BOTÃO DE INTERAÇÃO (👆) -----
+                const interactBtn = this.add.text(width - 70, height - 90, '👆', {
+                    fontSize: '28px', backgroundColor: 'rgba(0,0,0,0.5)', padding: { x: 10, y: 6 }
                 }).setOrigin(0.5).setScrollFactor(0).setDepth(200).setInteractive();
-                interactBtn.on('pointerdown', ()=>{
-                    console.log('Interagir!');
+                interactBtn.on('pointerdown', () => this.showActionText('Interagindo...', '#ffcc00'));
+            }
+
+            playerAttack() {
+                if (this.player.attackCooldown > 0) return;
+                this.player.attackCooldown = 30;
+
+                const slash = this.add.circle(this.player.x, this.player.y - 20, 18, 0xffcc00, 0.7).setDepth(50);
+                this.tweens.add({
+                    targets: slash, alpha: 0, scale: 1.5, duration: 200,
+                    onComplete: () => slash.destroy()
+                });
+                this.showActionText('⚔️ Ataque!', '#ff4444');
+            }
+
+            showActionText(text, color) {
+                const { width, height } = this.cameras.main;
+                const txt = this.add.text(width / 2, height / 2 - 20, text, {
+                    fontSize: '18px', color: color, stroke: '#000', strokeThickness: 4
+                }).setOrigin(0.5).setDepth(300);
+                this.tweens.add({
+                    targets: txt, y: txt.y - 30, alpha: 0, duration: 800,
+                    onComplete: () => txt.destroy()
                 });
             }
 
-            update(){
-                // Movimento via joystick mobile
-                if(this.joystickActive){
-                    this.player.x += this.mobileDirection.x * 4;
-                    this.player.y += this.mobileDirection.y * 4;
+            update(time, delta) {
+                if (this.joystickActive) {
+                    const threshold = 0.15;
+                    let moveX = this.mobileDirection.x;
+                    let moveY = this.mobileDirection.y;
+                    if (Math.abs(moveX) < threshold) moveX = 0;
+                    if (Math.abs(moveY) < threshold) moveY = 0;
+                    this.player.x += moveX * this.moveSpeed;
+                    this.player.y += moveY * this.moveSpeed;
                 }
 
-                // Direção do jogador (para animação futura)
-                if(this.mobileDirection.y < -0.2) this.player.direction = 'up';
-                else if(this.mobileDirection.y > 0.2) this.player.direction = 'down';
-                else if(this.mobileDirection.x < -0.2) this.player.direction = 'left';
-                else if(this.mobileDirection.x > 0.2) this.player.direction = 'right';
+                if (this.mobileDirection.y < -0.3) this.player.direction = 'up';
+                else if (this.mobileDirection.y > 0.3) this.player.direction = 'down';
+                else if (this.mobileDirection.x < -0.3) this.player.direction = 'left';
+                else if (this.mobileDirection.x > 0.3) this.player.direction = 'right';
 
-                // Atualiza corações
-                this.hearts.forEach((heart,i)=>{
+                if (this.player.attackCooldown > 0) this.player.attackCooldown--;
+
+                this.hearts.forEach((heart, i) => {
                     heart.setTexture(i < this.player.hp ? 'heart_full' : 'heart_empty');
                 });
             }
         }
 
-        // ==================== INICIALIZAÇÃO ====================
+        // ==================== CONFIGURAÇÃO DO JOGO ====================
         const config = {
             type: Phaser.AUTO,
             parent: 'game-container',
