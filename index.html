@@ -32,11 +32,11 @@
             discoveredRecipes:['pocao_vida_grande'], lastSaveTime:null, dragonRiding:false
         };
 
-        // ==================== CENA DE INICIALIZAÇÃO ====================
+        // ==================== BOOT SCENE ====================
         class BootScene extends Phaser.Scene {
             constructor(){ super('BootScene'); }
             preload(){
-                // Geração de texturas essenciais
+                // Textura do jogador
                 const canvas = this.textures.createCanvas('player_down',32,32);
                 const ctx = canvas.getContext();
                 ctx.fillStyle='#3a3a3a'; ctx.fillRect(10,6,12,18);
@@ -45,6 +45,7 @@
                 ctx.fillStyle='#c9a84c'; ctx.fillRect(10,8,4,4);
                 canvas.refresh();
 
+                // Coração
                 const heartCanvas = this.textures.createCanvas('heart_full',16,16);
                 const hc = heartCanvas.getContext();
                 hc.fillStyle='#cc0000'; hc.fillRect(4,3,8,10);
@@ -56,7 +57,7 @@
             }
         }
 
-        // ==================== MENU PRINCIPAL ====================
+        // ==================== MENU SCENE ====================
         class MenuScene extends Phaser.Scene {
             constructor(){ super('MenuScene'); }
             create(){
@@ -87,7 +88,7 @@
             }
         }
 
-        // ==================== JOGO PRINCIPAL ====================
+        // ==================== GAME SCENE (COM CONTROLES MOBILE) ====================
         class GameScene extends Phaser.Scene {
             constructor(){ super('GameScene'); }
             create(){
@@ -96,36 +97,90 @@
                 this.cameras.main.fadeIn(500);
 
                 // Mundo simples
-                this.player = this.physics.add.sprite(width/2, height/2 + 100, 'player_down');
+                this.player = this.physics.add.sprite(width/2, height/2, 'player_down');
                 this.player.setCollideWorldBounds(true);
                 this.player.hp = GameState.playerHP;
                 this.player.maxHp = GameState.playerMaxHP;
+                this.player.direction = 'down';
 
-                // Corações de vida (HUD simples)
+                // Corações (HUD)
                 this.hearts = [];
                 for(let i=0;i<this.player.maxHp;i++){
-                    const heart = this.add.image(20 + i*20, 20, 'heart_full').setScrollFactor(0);
+                    const heart = this.add.image(20 + i*20, 20, 'heart_full').setScrollFactor(0).setDepth(100);
                     this.hearts.push(heart);
                 }
 
-                // Controles
-                this.cursors = this.input.keyboard.createCursorKeys();
-
-                // Texto de boas-vindas centralizado
-                this.add.text(width/2, height/2 - 50, 'Eldoria', {
-                    fontSize:'32px', color:'#c9a84c', stroke:'#000', strokeThickness:6
-                }).setOrigin(0.5);
-
-                this.add.text(width/2, height/2 + 30, 'Use as SETAS para mover o herói', {
+                // Texto de instrução (centralizado no topo)
+                this.add.text(width/2, 60, 'Toque no joystick para mover', {
                     fontSize:'14px', color:'#cccccc', stroke:'#000', strokeThickness:3
-                }).setOrigin(0.5);
+                }).setOrigin(0.5).setDepth(100);
+
+                // ---- CONTROLES MOBILE ----
+                this.joystickActive = false;
+                this.joystickStart = { x:0, y:0 };
+                this.mobileDirection = { x:0, y:0 };
+
+                // Base do joystick (canto inferior esquerdo)
+                this.joystickBase = this.add.circle(80, height-140, 40, 0x000000, 0.3).setScrollFactor(0).setDepth(200).setInteractive();
+                this.joystickThumb = this.add.circle(80, height-140, 20, 0xffffff, 0.4).setScrollFactor(0).setDepth(201);
+
+                // Eventos do joystick
+                this.joystickBase.on('pointerdown', (pointer)=>{
+                    this.joystickActive = true;
+                    this.joystickStart = { x: pointer.x, y: pointer.y };
+                });
+
+                this.input.on('pointermove', (pointer)=>{
+                    if(!this.joystickActive) return;
+                    const dx = pointer.x - this.joystickStart.x;
+                    const dy = pointer.y - this.joystickStart.y;
+                    const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 35);
+                    const angle = Math.atan2(dy, dx);
+                    const tx = this.joystickStart.x + Math.cos(angle)*dist;
+                    const ty = this.joystickStart.y + Math.sin(angle)*dist;
+                    this.joystickThumb.setPosition(tx, ty);
+                    this.mobileDirection = {
+                        x: Math.cos(angle) * (dist/35),
+                        y: Math.sin(angle) * (dist/35)
+                    };
+                });
+
+                this.input.on('pointerup', ()=>{
+                    this.joystickActive = false;
+                    this.joystickThumb.setPosition(80, height-140);
+                    this.mobileDirection = { x:0, y:0 };
+                });
+
+                // Botão de ação (atacar) - canto inferior direito
+                const atkBtn = this.add.text(width-70, height-160, '⚔️', {
+                    fontSize:'32px', backgroundColor:'rgba(0,0,0,0.5)', padding:{x:12,y:8}
+                }).setOrigin(0.5).setScrollFactor(0).setDepth(200).setInteractive();
+                atkBtn.on('pointerdown', ()=>{
+                    // Ação de ataque (futuro)
+                    console.log('Atacar!');
+                });
+
+                // Botão de interação
+                const interactBtn = this.add.text(width-70, height-90, '👆', {
+                    fontSize:'28px', backgroundColor:'rgba(0,0,0,0.5)', padding:{x:10,y:6}
+                }).setOrigin(0.5).setScrollFactor(0).setDepth(200).setInteractive();
+                interactBtn.on('pointerdown', ()=>{
+                    console.log('Interagir!');
+                });
             }
 
             update(){
-                if(this.cursors.left.isDown) this.player.x -= 3;
-                if(this.cursors.right.isDown) this.player.x += 3;
-                if(this.cursors.up.isDown) this.player.y -= 3;
-                if(this.cursors.down.isDown) this.player.y += 3;
+                // Movimento via joystick mobile
+                if(this.joystickActive){
+                    this.player.x += this.mobileDirection.x * 4;
+                    this.player.y += this.mobileDirection.y * 4;
+                }
+
+                // Direção do jogador (para animação futura)
+                if(this.mobileDirection.y < -0.2) this.player.direction = 'up';
+                else if(this.mobileDirection.y > 0.2) this.player.direction = 'down';
+                else if(this.mobileDirection.x < -0.2) this.player.direction = 'left';
+                else if(this.mobileDirection.x > 0.2) this.player.direction = 'right';
 
                 // Atualiza corações
                 this.hearts.forEach((heart,i)=>{
@@ -134,7 +189,7 @@
             }
         }
 
-        // ==================== INICIALIZAÇÃO DO JOGO ====================
+        // ==================== INICIALIZAÇÃO ====================
         const config = {
             type: Phaser.AUTO,
             parent: 'game-container',
