@@ -3,474 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>REINO DAS CINZAS - Passo 5: Bosses, Dragões & Finais</title>
+    <title>REINO DAS CINZAS</title>
     <style>
-        :root {
-            --bg: #0a0a0a;
-            --gold: #c9a84c;
-            --blood: #8b0000;
-            --ash: #4a4a4a;
-        }
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            background: #000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
-            touch-action: none;
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            font-family: 'Georgia', 'Times New Roman', serif;
-        }
-        #game-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            max-width: 900px;
-            max-height: 1600px;
-            aspect-ratio: 9/16;
-            box-shadow: 0 0 60px rgba(180, 120, 30, 0.3), 0 0 120px rgba(0, 0, 0, 0.8);
-            border: 2px solid #2a1f0a;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        canvas {
-            display: block;
-            image-rendering: pixelated;
-            image-rendering: crisp-edges;
-        }
-        @media (min-width: 900px) {
-            #game-container {
-                max-height: 95vh;
-                aspect-ratio: auto;
-                height: 95vh;
-                width: auto;
-            }
-        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { background:#000; display:flex; justify-content:center; align-items:center; width:100vw; height:100vh; overflow:hidden; touch-action:none; }
+        #game-container { width:100%; height:100%; max-width:900px; max-height:1600px; aspect-ratio:9/16; box-shadow:0 0 60px rgba(180,120,30,0.3); border:2px solid #2a1f0a; border-radius:4px; overflow:hidden; }
     </style>
 </head>
 <body>
     <div id="game-container"></div>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js">
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <script>
-        // ============================================================
-        // REINO DAS CINZAS - PASSO 5: BOSSES, DRAGÕES & FINAIS
-        // ============================================================
-        const GAME_WIDTH = 480;
-        const GAME_HEIGHT = 800;
-
-        // Banco de dados expandido
-        const ItemDatabase = {
-            'espada_curta': { name: 'Espada Curta', type: 'weapon', damage: 5, rarity: 'comum', value: 25 },
-            'espada_longa': { name: 'Espada Longa', type: 'weapon', damage: 8, rarity: 'raro', value: 80 },
-            'lamina_sombria': { name: 'Lâmina Sombria', type: 'weapon', damage: 14, rarity: 'épico', value: 300 },
-            'laminadodragao': { name: 'Lâmina do Dragão', type: 'weapon', damage: 22, rarity: 'lendário', value: 999 },
-            'pocao_vida': { name: 'Poção de Vida', type: 'potion', heal: 2, rarity: 'comum', value: 15 },
-            'pocao_vida_grande': { name: 'Poção de Vida Grande', type: 'potion', heal: 5, rarity: 'raro', value: 45 },
-            'pocao_stamina': { name: 'Poção de Vigor', type: 'potion', staminaRestore: 50, rarity: 'comum', value: 12 },
-            'armadura_couro': { name: 'Armadura de Couro', type: 'armor', defense: 3, rarity: 'comum', value: 40 },
-            'armadura_ferro': { name: 'Armadura de Ferro', type: 'armor', defense: 6, rarity: 'raro', value: 120 },
-            'amuleto_cinzas': { name: 'Amuleto das Cinzas', type: 'accessory', luck: 3, rarity: 'épico', value: 200 },
-            'essencia_fogo': { name: 'Essência de Fogo', type: 'crafting', rarity: 'raro', value: 50 },
-            'essencia_gelo': { name: 'Essência de Gelo', type: 'crafting', rarity: 'raro', value: 50 },
-            'ferro_bruto': { name: 'Ferro Bruto', type: 'crafting', rarity: 'comum', value: 10 },
-            'couro': { name: 'Couro', type: 'crafting', rarity: 'comum', value: 8 },
-        };
-
-        const CraftingRecipes = [
-            { result: 'pocao_vida_grande', materials: ['pocao_vida', 'pocao_vida', 'essencia_fogo'],
-                description: 'Poção de Vida Grande' },
-            { result: 'armadura_ferro', materials: ['armadura_couro', 'ferro_bruto', 'ferro_bruto'],
-                description: 'Armadura de Ferro' },
-            { result: 'lamina_sombria', materials: ['espada_longa', 'essencia_fogo', 'essencia_gelo'],
-                description: 'Lâmina Sombria' },
-            { result: 'laminadodragao', materials: ['lamina_sombria', 'essencia_fogo', 'essencia_gelo', 'essencia_fogo'],
-                description: 'Lâmina do Dragão' },
-        ];
-
+        const GAME_WIDTH = 480, GAME_HEIGHT = 800;
         const GameState = {
-            playerLevel: 1,
-            playerXP: 0,
-            xpToNext: 100,
-            skillPoints: 0,
-            playerStats: { strength: 5, defense: 3, agility: 4, mana: 10, luck: 2 },
-            playerHP: 5,
-            playerMaxHP: 5,
-            playerStamina: 100,
-            playerMaxStamina: 100,
-            gold: 50,
-            inventory: [
-                { id: 'espada_curta', quantity: 1 },
-                { id: 'pocao_vida', quantity: 3 },
-                { id: 'couro', quantity: 2 },
-            ],
-            equipment: { weapon: 'espada_curta', armor: null, accessory: null },
-            reputation: { arthon: 10, korag: 0, eldryn: 0, north: 0, stormIsle: 0 },
-            quests: { main: { id: 'main_01', step: 0, title: 'O Despertar das Cinzas', completed: false }, side: [] },
-            completedQuests: [],
-            choices: { sparedVillage: null, executedKing: false, usedForbiddenMagic: false, freedDragons: false },
-            currentRegion: 'arthon',
-            gameTime: 0,
-            dragonsDiscovered: 0,
-            bossesDefeated: [],
-            ending: null,
-            discoveredRecipes: ['pocao_vida_grande'],
-            lastSaveTime: null,
-            dragonRiding: false,
+            playerLevel:1, playerXP:0, xpToNext:100, skillPoints:0,
+            playerStats:{ strength:5, defense:3, agility:4, mana:10, luck:2 },
+            playerHP:5, playerMaxHP:5, playerStamina:100, playerMaxStamina:100,
+            gold:50,
+            inventory:[{id:'espada_curta',quantity:1},{id:'pocao_vida',quantity:3}],
+            equipment:{ weapon:'espada_curta', armor:null, accessory:null },
+            reputation:{arthon:10,korag:0,eldryn:0,north:0,stormIsle:0},
+            quests:{main:{id:'main_01',step:0,title:'O Despertar das Cinzas'},side:[]},
+            choices:{sparedVillage:null,executedKing:false,usedForbiddenMagic:false,freedDragons:false},
+            currentRegion:'arthon', gameTime:0, dragonsDiscovered:0, bossesDefeated:[], ending:null,
+            discoveredRecipes:['pocao_vida_grande'], lastSaveTime:null, dragonRiding:false
         };
-
-        function getEquippedWeaponDamage() {
-            const wpnId = GameState.equipment.weapon;
-            return wpnId && ItemDatabase[wpnId] ? ItemDatabase[wpnId].damage || 3 : 3;
-        }
-        function getEquippedArmorDefense() {
-            const armId = GameState.equipment.armor;
-            return armId && ItemDatabase[armId] ? ItemDatabase[armId].defense || 0 : 0;
-        }
-        function getTotalStat(statName) {
-            let total = GameState.playerStats[statName] || 0;
-            ['weapon', 'armor', 'accessory'].forEach(slot => {
-                const id = GameState.equipment[slot];
-                if (id && ItemDatabase[id] && ItemDatabase[id][statName]) total += ItemDatabase[id][statName];
-            });
-            return total;
-        }
-        function addToInventory(itemId, qty = 1) {
-            const existing = GameState.inventory.find(i => i.id === itemId);
-            if (existing) existing.quantity += qty;
-            else GameState.inventory.push({ id: itemId, quantity: qty });
-        }
-        function removeFromInventory(itemId, qty = 1) {
-            const existing = GameState.inventory.find(i => i.id === itemId);
-            if (!existing) return false;
-            existing.quantity -= qty;
-            if (existing.quantity <= 0) GameState.inventory = GameState.inventory.filter(i => i.id !== itemId);
-            return true;
-        }
-        function countInInventory(itemId) { const e = GameState.inventory.find(i => i.id === itemId); return e ? e
-            .quantity : 0; }
-        function saveGame() { GameState.lastSaveTime = Date.now();
-            localStorage.setItem('reino_das_cinzas_save', JSON.stringify(GameState)); return true; }
-
-        function loadGame() {
-            const saved = localStorage.getItem('reino_das_cinzas_save');
-            if (saved) { try { Object.assign(GameState, JSON.parse(saved)); return true; } catch (e) { return false; } }
-            return false;
-        }
-
         const config = {
-            type: Phaser.AUTO,
-            parent: 'game-container',
-            width: GAME_WIDTH,
-            height: GAME_HEIGHT,
-            pixelArt: true,
-            roundPixels: true,
-            scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: GAME_WIDTH,
-            height: GAME_HEIGHT },
+            type: Phaser.AUTO, parent: 'game-container', width: GAME_WIDTH, height: GAME_HEIGHT,
+            pixelArt: true, roundPixels: true,
+            scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: GAME_WIDTH, height: GAME_HEIGHT },
             physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
-            scene: [BootScene, MenuScene, GameScene, HudScene, DialogScene, InventoryScene, SkillScene, CraftingScene,
-                ShopScene, QuestLogScene, WorldMapScene, BossScene, DragonScene, EndingScene
-            ],
-            backgroundColor: '#0a0a0a',
-            input: { activePointers: 3 },
+            scene: [BootScene, MenuScene, GameScene],
+            backgroundColor: '#0a0a0a'
         };
-
         const game = new Phaser.Game(config);
 
-        function generateAllTextures(scene) {
-            ['down', 'up', 'left', 'right'].forEach(dir => {
-                const canvas = scene.textures.createCanvas(`player_${dir}`, 32, 32);
-                const ctx = canvas.getContext();
-                ctx.fillStyle = '#3a3a3a';
-                ctx.fillRect(10, 6, 12, 18);
-                ctx.fillStyle = '#1a1a1a';
-                ctx.fillRect(8, 24, 16, 8);
-                ctx.fillStyle = '#ff6600';
-                ctx.fillRect(6, 10, 3, 6);
-                ctx.fillStyle = '#6b3a2a';
-                ctx.fillRect(12, 2, 8, 6);
-                ctx.fillStyle = '#8b0000';
-                ctx.fillRect(14, 4, 2, 2);
-                ctx.fillRect(18, 4, 2, 2);
-                ctx.fillStyle = '#c9a84c';
-                ctx.fillRect(10, 8, 4, 4);
-                canvas.refresh();
-            });
-            const atkCanvas = scene.textures.createCanvas('player_attack', 32, 32);
-            const aCtx = atkCanvas.getContext();
-            aCtx.drawImage(scene.textures.get('player_down').getCanvas(), 0, 0);
-            aCtx.fillStyle = '#ffffff';
-            aCtx.fillRect(22, 12, 10, 3);
-            atkCanvas.refresh();
-            const npcCanvas = scene.textures.createCanvas('npc_villager', 32, 32);
-            const nCtx = npcCanvas.getContext();
-            nCtx.fillStyle = '#5a4a3a';
-            nCtx.fillRect(10, 6, 12, 16);
-            nCtx.fillStyle = '#d4a574';
-            nCtx.fillRect(12, 2, 8, 6);
-            npcCanvas.refresh();
-            const enemyCanvas = scene.textures.createCanvas('enemy_darkknight', 32, 32);
-            const eCtx = enemyCanvas.getContext();
-            eCtx.fillStyle = '#1a1a2e';
-            eCtx.fillRect(8, 4, 16, 20);
-            eCtx.fillStyle = '#4a0000';
-            eCtx.fillRect(12, 0, 8, 6);
-            eCtx.fillStyle = '#ff0000';
-            eCtx.fillRect(14, 2, 3, 2);
-            eCtx.fillRect(18, 2, 3, 2);
-            enemyCanvas.refresh();
-            const bossCanvas = scene.textures.createCanvas('boss_faceless', 64, 64);
-            const bCtx = bossCanvas.getContext();
-            bCtx.fillStyle = '#1a0a2a';
-            bCtx.fillRect(16, 8, 32, 40);
-            bCtx.fillStyle = '#000000';
-            bCtx.fillRect(20, 0, 24, 12);
-            bCtx.fillStyle = '#ff0000';
-            bCtx.fillRect(28, 20, 8, 8);
-            bossCanvas.refresh();
-            const dragonCanvas = scene.textures.createCanvas('dragon_vharok', 80, 60);
-            const dCtx = dragonCanvas.getContext();
-            dCtx.fillStyle = '#1a0000';
-            dCtx.fillRect(20, 10, 40, 30);
-            dCtx.fillStyle = '#ff4400';
-            dCtx.fillRect(12, 2, 6, 4);
-            dCtx.fillStyle = '#000000';
-            dCtx.fillRect(50, 20, 30, 15);
-            dragonCanvas.refresh();
-            ['heart_full', 'heart_empty', 'stamina_icon', 'particle', 'coin_icon', 'potion_red', 'bonfire'].forEach(
-            key => {
-                if (!scene.textures.exists(key)) {
-                    const c = scene.textures.createCanvas(key, key === 'bonfire' ? 24 : key === 'particle' ? 4 :
-                        16, key === 'bonfire' ? 28 : 16);
-                    const ctx = c.getContext();
-                    if (key === 'heart_full') { ctx.fillStyle = '#cc0000';
-                        ctx.fillRect(4, 3, 8, 10); } else if (key === 'coin_icon') { ctx.fillStyle = '#cc9900';
-                        ctx.fillRect(3, 2, 6, 8); } else if (key === 'bonfire') { ctx.fillStyle = '#ff6600';
-                        ctx.fillRect(6, 4, 6, 10); }
-                    c.refresh();
-                }
-            });
-            console.log('✅ [Passo 5] Texturas épicas geradas');
-        }
-
-        // ==================== BOOT / MENU ====================
         class BootScene extends Phaser.Scene {
-            constructor() { super('BootScene'); }
-            preload() {
-                generateAllTextures(this);
-                for (let i = 0; i < 10; i++) this.load.image(`dummy_${i}`,
-                    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
-                    );
+            constructor(){ super('BootScene'); }
+            create(){
+                this.cameras.main.fadeIn(500);
+                this.time.delayedCall(500, ()=> this.scene.start('MenuScene'));
             }
-            create() { loadGame();
-                this.time.delayedCall(500, () => this.scene.start('MenuScene')); }
         }
 
         class MenuScene extends Phaser.Scene {
-            constructor() { super('MenuScene'); }
-            create() {
-                const w = this.cameras.main.width,
-                    h = this.cameras.main.height;
-                this.cameras.main.fadeIn(1000);
-                this.add.text(w / 2, h * 0.2, 'REINO DAS CINZAS', { fontFamily: 'Georgia, serif', fontSize: '48px',
-                    color: '#c9a84c', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
-                const startBtn = this.add.text(w / 2, h * 0.5, '🔱 INICIAR', { fontFamily: 'Georgia, serif',
-                    fontSize: '24px', color: '#d4c48a' }).setOrigin(0.5).setInteractive();
-                startBtn.on('pointerdown', () => this.scene.start('GameScene'));
+            constructor(){ super('MenuScene'); }
+            create(){
+                const {width,height} = this.cameras.main;
+                this.add.text(width/2, height/2-50, 'REINO DAS CINZAS', { fontSize:'32px', color:'#c9a84c', stroke:'#000', strokeThickness:6 }).setOrigin(0.5);
+                const btn = this.add.text(width/2, height/2+20, '▶ JOGAR', { fontSize:'28px', color:'#d4c48a', stroke:'#000', strokeThickness:4, padding:{x:20,y:10} }).setOrigin(0.5).setInteractive();
+                btn.on('pointerdown', ()=> this.scene.start('GameScene'));
             }
         }
 
-        // ==================== GAME SCENE (integrada) ====================
         class GameScene extends Phaser.Scene {
-            constructor() { super('GameScene'); }
-            create() {
-                this.mapWidth = 4000;
-                this.mapHeight = 4000;
-                this.physics.world.setBounds(0, 0, this.mapWidth, this.mapHeight);
-                this.walls = this.physics.add.staticGroup();
-                this.enemies = this.physics.add.group();
-                this.npcs = this.physics.add.group();
-                this.drops = this.physics.add.group();
-                this.portals = this.physics.add.group();
-                this.generateWorld();
-                this.player = this.physics.add.sprite(400, 500, 'player_down').setCollideWorldBounds(true).setSize(20,
-                    28).setDepth(10);
-                this.player.hp = GameState.playerHP;
-                this.player.maxHp = GameState.playerMaxHP;
-                this.player.stamina = GameState.playerStamina;
-                this.player.maxStamina = GameState.playerMaxStamina;
-                this.player.direction = 'down';
-                this.player.alive = true;
-                this.physics.add.collider(this.player, this.walls);
-                this.physics.add.overlap(this.player, this.enemies, this.onHitEnemy, null, this);
-                this.physics.add.overlap(this.player, this.drops, this.onCollect, null, this);
-                this.physics.add.overlap(this.player, this.npcs, this.onNearNPC, null, this);
-                this.physics.add.overlap(this.player, this.portals, this.onPortal, null, this);
-                this.cameras.main.setBounds(0, 0, this.mapWidth, this.mapHeight);
-                this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-                this.scene.launch('HudScene', { gameScene: this });
-                this.spawnEntities();
+            constructor(){ super('GameScene'); }
+            create(){
+                this.add.text(240,400,'Bem-vindo a Eldoria!\n\nUse as setas para mover.\nToque no castelo.',{ fontSize:'18px', color:'#ffffff', align:'center' }).setOrigin(0.5);
+                // Pequeno mundo de teste
+                this.player = this.physics.add.sprite(240,500,'player_down');
+                this.player.setCollideWorldBounds(true);
                 this.cursors = this.input.keyboard.createCursorKeys();
-                this.attackKey = this.input.keyboard.addKey('J');
-                this.dodgeKey = this.input.keyboard.addKey('K');
-                this.interactKey = this.input.keyboard.addKey('E');
-                this.input.keyboard.on('keydown-E', () => this.interactNPC());
-                this.input.keyboard.on('keydown-I', () => { this.scene.pause();
-                    this.scene.launch('InventoryScene', { gameScene: this }); });
-                this.input.keyboard.on('keydown-T', () => { this.scene.pause();
-                    this.scene.launch('SkillScene', { gameScene: this }); });
-                this.input.keyboard.on('keydown-C', () => { this.scene.pause();
-                    this.scene.launch('CraftingScene', { gameScene: this }); });
-                this.input.keyboard.on('keydown-M', () => { this.scene.pause();
-                    this.scene.launch('WorldMapScene', { gameScene: this }); });
-                this.input.keyboard.on('keydown-Q', () => { this.scene.pause();
-                    this.scene.launch('QuestLogScene', { gameScene: this }); });
-                this.setupMobile();
-                this.time.delayedCall(2000, () => this.showDialog('Kael', 'Meu destino me aguarda... os dragões e os lordes sombrios.', null));
-                console.log('🐉 Passo 5 iniciado');
             }
-
-            generateWorld() { /* simplificado: tiles básicos */ }
-            spawnEntities() {
-                this.spawnEnemy(600, 400, 'enemy_darkknight', { hp: 3 });
-                this.spawnNPC(480, 520, 'npc_villager', 'ancião');
-                // Portais para bosses
-                this.portals.add(this.physics.add.sprite(560, 360, 'bonfire').setSize(40, 40).setData('boss',
-                    'bispo_sem_face'));
-                this.portals.add(this.physics.add.sprite(700, 100, 'bonfire').setSize(40, 40).setData('boss',
-                'rei_do_gelo'));
-                this.portals.add(this.physics.add.sprite(1000, 1800, 'bonfire').setSize(40, 40).setData('boss',
-                    'vharok'));
+            preload(){
+                // gerar textura mínima do jogador
+                const canvas = this.textures.createCanvas('player_down',32,32);
+                const ctx = canvas.getContext();
+                ctx.fillStyle='#3a3a3a'; ctx.fillRect(10,6,12,18);
+                ctx.fillStyle='#6b3a2a'; ctx.fillRect(12,2,8,6);
+                ctx.fillStyle='#c9a84c'; ctx.fillRect(10,8,4,4);
+                canvas.refresh();
             }
-
-            onPortal(player, portal) {
-                const bossId = portal.getData('boss');
-                if (bossId) {
-                    this.scene.pause();
-                    this.scene.launch('BossScene', { gameScene: this, bossId });
-                }
-            }
-
-            interactNPC() {
-                const npc = this.npcs.getChildren().find(n => Phaser.Math.Distance.Between(this.player.x, this.player.y,
-                    n.x, n.y) < 50);
-                if (npc && npc.npcId === 'ancião') {
-                    this.showDialog('Ancião', 'Derrote os três grandes males: Bispo Sem Face, Rei do Gelo e Vharok. Só então seu destino será revelado.', null);
-                }
-            }
-
-            showDialog(speaker, text, cb) { this.scene.pause();
-                this.scene.launch('DialogScene', { speaker, text, callback: cb, gameScene: this }); }
-
-            // Combate simplificado
-            onHitEnemy(p, e) { if (!p.invulnerable && p.alive) { p.hp--;
-                    p.invulnerable = true;
-                    this.time.delayedCall(500, () => p.invulnerable = false); if (p.hp <= 0) this.playerDeath(); } }
-
-            playerDeath() { this.player.hp = Math.ceil(this.player.maxHp / 2);
-                this.player.setPosition(400, 500);
-                this.cameras.main.fadeIn(500); }
-
-            update() { /* movimento e IA simplificados */ }
-            setupMobile() {}
-        }
-
-        // ==================== BOSS SCENE ====================
-        class BossScene extends Phaser.Scene {
-            constructor() { super('BossScene'); }
-            init(data) { this.gameScene = data.gameScene;
-                this.bossId = data.bossId; }
-            create() {
-                const w = this.cameras.main.width,
-                    h = this.cameras.main.height;
-                this.add.graphics().fillStyle(0x000000, 1).fillRect(0, 0, w, h);
-                this.add.text(w / 2, 100, '⚔️ BOSS: ' + this.bossId.replace(/_/g, ' ').toUpperCase(), { fontFamily: 'Georgia, serif',
-                    fontSize: '28px', color: '#ff4444', stroke: '#000', strokeThickness: 6 }).setOrigin(0.5);
-                const bossHp = this.bossId === 'vharok' ? 50 : 20;
-                this.boss = { hp: bossHp, maxHp: bossHp };
-                this.playerDmg = getEquippedWeaponDamage() + GameState.playerStats.strength;
-                this.add.text(w / 2, 200, `Sua força: ${this.playerDmg} | HP do Boss: ${this.boss.hp}`, { fontFamily: 'Georgia, serif',
-                    fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
-                const atkBtn = this.add.text(w / 2, 350, 'ATACAR', { fontSize: '32px', color: '#ff4444',
-                    backgroundColor: '#330000', padding: { x: 20, y: 10 } }).setOrigin(0.5).setInteractive();
-                atkBtn.on('pointerdown', () => {
-                    this.boss.hp -= this.playerDmg;
-                    if (this.boss.hp <= 0) {
-                        GameState.bossesDefeated.push(this.bossId);
-                        if (this.bossId === 'vharok') GameState.dragonsDiscovered = 3;
-                        this.scene.stop();
-                        this.gameScene.scene.resume();
-                        if (GameState.bossesDefeated.length >= 3) this.scene.launch('EndingScene', { gameScene: this
-                                .gameScene });
-                        else this.gameScene.showDialog('Vitória!', 'O boss foi derrotado!', null);
-                    }
-                });
+            update(){
+                if(this.cursors.left.isDown) this.player.x -= 3;
+                if(this.cursors.right.isDown) this.player.x += 3;
+                if(this.cursors.up.isDown) this.player.y -= 3;
+                if(this.cursors.down.isDown) this.player.y += 3;
             }
         }
-
-        // ==================== DRAGON SCENE (montaria) ====================
-        class DragonScene extends Phaser.Scene {
-            constructor() { super('DragonScene'); }
-            create() {
-                this.add.text(400, 300, '🐉 Você monta o dragão!', { fontSize: '24px', color: '#ffcc00' }).setOrigin(
-                0.5);
-                GameState.dragonRiding = true;
-                this.time.delayedCall(2000, () => this.scene.stop());
-            }
-        }
-
-        // ==================== ENDING SCENE ====================
-        class EndingScene extends Phaser.Scene {
-            constructor() { super('EndingScene'); }
-            init(data) { this.gameScene = data.gameScene; }
-            create() {
-                const w = this.cameras.main.width,
-                    h = this.cameras.main.height;
-                this.add.graphics().fillStyle(0x000000, 1).fillRect(0, 0, w, h);
-                let endingText = '';
-                if (GameState.choices.freedDragons) endingText = '🐉 Era dos Dragões: Você libertou os dragões e Eldoria renasce.';
-                else if (GameState.choices.executedKing) endingText = '👑 Tirano Sombrio: Você usurpou o trono.';
-                else if (GameState.reputation.arthon > 50) endingText = '⚔️ Rei das Cinzas: Você uniu os reinos.';
-                else endingText = '💀 Último Sacrifício: Você deu sua vida por Eldoria.';
-                GameState.ending = endingText;
-                this.add.text(w / 2, h / 2 - 40, 'FIM', { fontFamily: 'Georgia, serif', fontSize: '48px', color: '#c9a84c',
-                    stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
-                this.add.text(w / 2, h / 2 + 40, endingText, { fontFamily: 'Georgia, serif', fontSize: '20px',
-                    color: '#ffffff', wordWrap: { width: w - 60 }, align: 'center' }).setOrigin(0.5);
-                this.add.text(w / 2, h - 60, 'Obrigado por jogar REINO DAS CINZAS', { fontFamily: 'Georgia, serif',
-                    fontSize: '14px', color: '#888888' }).setOrigin(0.5);
-            }
-        }
-
-        // Cenas auxiliares (HudScene, DialogScene, InventoryScene, etc.) devem ser incluídas de forma simplificada ou referenciadas.
-        // Incluir placeholders para garantir que o jogo rode.
-        class HudScene extends Phaser.Scene { constructor() { super('HudScene'); } create() {} update() {} }
-        class DialogScene extends Phaser.Scene { constructor() { super('DialogScene'); } create() { this.scene.stop(); } }
-        class InventoryScene extends Phaser.Scene { constructor() { super('InventoryScene'); } create() { this.scene
-                .stop(); } }
-        class SkillScene extends Phaser.Scene { constructor() { super('SkillScene'); } create() { this.scene.stop(); } }
-        class CraftingScene extends Phaser.Scene { constructor() { super('CraftingScene'); } create() { this.scene
-                .stop(); } }
-        class ShopScene extends Phaser.Scene { constructor() { super('ShopScene'); } create() { this.scene.stop(); } }
-        class QuestLogScene extends Phaser.Scene { constructor() { super('QuestLogScene'); } create() { this.scene
-            .stop(); } }
-        class WorldMapScene extends Phaser.Scene { constructor() { super('WorldMapScene'); } create() { this.scene
-            .stop(); } }
-
-        console.log('🔥 REINO DAS CINZAS - PASSO 5 COMPLETO');
-        console.log('🐉 Bosses: Bispo Sem Face, Rei do Gelo, Vharok');
-        console.log('⚔️ Dragões montáveis, 4 finais, crafting lendário');
-        console.log('✅ APK pronto para build via Capacitor/Cordova');
     </script>
 </body>
-</html> 
+</html>
