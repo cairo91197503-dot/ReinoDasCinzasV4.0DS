@@ -3,83 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>REINO DAS CINZAS</title>
+    <title>REINO DAS CINZAS - Teste Mínimo</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { background:#000; display:flex; justify-content:center; align-items:center; width:100vw; height:100vh; overflow:hidden; touch-action:none; }
-        #game-container { width:100%; height:100%; max-width:900px; max-height:1600px; aspect-ratio:9/16; box-shadow:0 0 60px rgba(180,120,30,0.3); border:2px solid #2a1f0a; border-radius:4px; overflow:hidden; }
+        body { background:#000; display:flex; justify-content:center; align-items:center; width:100vw; height:100vh; overflow:hidden; }
+        #game-container { width:100%; height:100%; max-width:900px; max-height:1600px; aspect-ratio:9/16; border:2px solid #c9a84c; }
     </style>
 </head>
 <body>
     <div id="game-container"></div>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+
+    <!-- Carrega o Phaser de uma CDN alternativa, caso a outra esteja bloqueada -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
     <script>
-        const GAME_WIDTH = 480, GAME_HEIGHT = 800;
-        const GameState = {
-            playerLevel:1, playerXP:0, xpToNext:100, skillPoints:0,
-            playerStats:{ strength:5, defense:3, agility:4, mana:10, luck:2 },
-            playerHP:5, playerMaxHP:5, playerStamina:100, playerMaxStamina:100,
-            gold:50,
-            inventory:[{id:'espada_curta',quantity:1},{id:'pocao_vida',quantity:3}],
-            equipment:{ weapon:'espada_curta', armor:null, accessory:null },
-            reputation:{arthon:10,korag:0,eldryn:0,north:0,stormIsle:0},
-            quests:{main:{id:'main_01',step:0,title:'O Despertar das Cinzas'},side:[]},
-            choices:{sparedVillage:null,executedKing:false,usedForbiddenMagic:false,freedDragons:false},
-            currentRegion:'arthon', gameTime:0, dragonsDiscovered:0, bossesDefeated:[], ending:null,
-            discoveredRecipes:['pocao_vida_grande'], lastSaveTime:null, dragonRiding:false
-        };
-        const config = {
-            type: Phaser.AUTO, parent: 'game-container', width: GAME_WIDTH, height: GAME_HEIGHT,
-            pixelArt: true, roundPixels: true,
-            scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: GAME_WIDTH, height: GAME_HEIGHT },
-            physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
-            scene: [BootScene, MenuScene, GameScene],
-            backgroundColor: '#0a0a0a'
-        };
-        const game = new Phaser.Game(config);
-
-        class BootScene extends Phaser.Scene {
-            constructor(){ super('BootScene'); }
-            create(){
-                this.cameras.main.fadeIn(500);
-                this.time.delayedCall(500, ()=> this.scene.start('MenuScene'));
-            }
-        }
-
-        class MenuScene extends Phaser.Scene {
-            constructor(){ super('MenuScene'); }
-            create(){
-                const {width,height} = this.cameras.main;
-                this.add.text(width/2, height/2-50, 'REINO DAS CINZAS', { fontSize:'32px', color:'#c9a84c', stroke:'#000', strokeThickness:6 }).setOrigin(0.5);
-                const btn = this.add.text(width/2, height/2+20, '▶ JOGAR', { fontSize:'28px', color:'#d4c48a', stroke:'#000', strokeThickness:4, padding:{x:20,y:10} }).setOrigin(0.5).setInteractive();
-                btn.on('pointerdown', ()=> this.scene.start('GameScene'));
-            }
-        }
-
-        class GameScene extends Phaser.Scene {
-            constructor(){ super('GameScene'); }
-            create(){
-                this.add.text(240,400,'Bem-vindo a Eldoria!\n\nUse as setas para mover.\nToque no castelo.',{ fontSize:'18px', color:'#ffffff', align:'center' }).setOrigin(0.5);
-                // Pequeno mundo de teste
-                this.player = this.physics.add.sprite(240,500,'player_down');
-                this.player.setCollideWorldBounds(true);
-                this.cursors = this.input.keyboard.createCursorKeys();
-            }
-            preload(){
-                // gerar textura mínima do jogador
-                const canvas = this.textures.createCanvas('player_down',32,32);
-                const ctx = canvas.getContext();
-                ctx.fillStyle='#3a3a3a'; ctx.fillRect(10,6,12,18);
-                ctx.fillStyle='#6b3a2a'; ctx.fillRect(12,2,8,6);
-                ctx.fillStyle='#c9a84c'; ctx.fillRect(10,8,4,4);
-                canvas.refresh();
-            }
-            update(){
-                if(this.cursors.left.isDown) this.player.x -= 3;
-                if(this.cursors.right.isDown) this.player.x += 3;
-                if(this.cursors.up.isDown) this.player.y -= 3;
-                if(this.cursors.down.isDown) this.player.y += 3;
-            }
+        // Verifica se o Phaser foi carregado
+        if (typeof Phaser === 'undefined') {
+            document.body.innerHTML = '<h1 style="color:red;text-align:center;margin-top:50px;">ERRO: Phaser não carregou.</h1>';
+        } else {
+            // Configuração ultra simples
+            const config = {
+                type: Phaser.AUTO,
+                parent: 'game-container',
+                width: 480,
+                height: 800,
+                backgroundColor: '#1a1a2e',
+                scene: {
+                    create: function() {
+                        // Apenas um texto centralizado
+                        this.add.text(240, 400, 'Phaser funcionando!\nReino das Cinzas', {
+                            fontSize: '24px',
+                            color: '#c9a84c',
+                            align: 'center',
+                            stroke: '#000',
+                            strokeThickness: 4
+                        }).setOrigin(0.5);
+                    }
+                }
+            };
+            new Phaser.Game(config);
         }
     </script>
 </body>
