@@ -3,45 +3,160 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>REINO DAS CINZAS - Teste Mínimo</title>
+    <title>REINO DAS CINZAS</title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { background:#000; display:flex; justify-content:center; align-items:center; width:100vw; height:100vh; overflow:hidden; }
-        #game-container { width:100%; height:100%; max-width:900px; max-height:1600px; aspect-ratio:9/16; border:2px solid #c9a84c; }
+        body { background:#000; display:flex; justify-content:center; align-items:center; width:100vw; height:100vh; overflow:hidden; touch-action:none; }
+        #game-container { width:100%; height:100%; max-width:900px; max-height:1600px; aspect-ratio:9/16; border:2px solid #2a1f0a; border-radius:4px; overflow:hidden; }
     </style>
 </head>
 <body>
     <div id="game-container"></div>
-
-    <!-- Carrega o Phaser de uma CDN alternativa, caso a outra esteja bloqueada -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <script>
-        // Verifica se o Phaser foi carregado
-        if (typeof Phaser === 'undefined') {
-            document.body.innerHTML = '<h1 style="color:red;text-align:center;margin-top:50px;">ERRO: Phaser não carregou.</h1>';
-        } else {
-            // Configuração ultra simples
-            const config = {
-                type: Phaser.AUTO,
-                parent: 'game-container',
-                width: 480,
-                height: 800,
-                backgroundColor: '#1a1a2e',
-                scene: {
-                    create: function() {
-                        // Apenas um texto centralizado
-                        this.add.text(240, 400, 'Phaser funcionando!\nReino das Cinzas', {
-                            fontSize: '24px',
-                            color: '#c9a84c',
-                            align: 'center',
-                            stroke: '#000',
-                            strokeThickness: 4
-                        }).setOrigin(0.5);
-                    }
-                }
-            };
-            new Phaser.Game(config);
+        // ==================== CONFIGURAÇÃO ====================
+        const GAME_WIDTH = 480;
+        const GAME_HEIGHT = 800;
+
+        const GameState = {
+            playerLevel:1, playerXP:0, xpToNext:100, skillPoints:0,
+            playerStats:{ strength:5, defense:3, agility:4, mana:10, luck:2 },
+            playerHP:5, playerMaxHP:5, playerStamina:100, playerMaxStamina:100,
+            gold:50,
+            inventory:[{id:'espada_curta',quantity:1},{id:'pocao_vida',quantity:3}],
+            equipment:{ weapon:'espada_curta', armor:null, accessory:null },
+            reputation:{arthon:10,korag:0,eldryn:0,north:0,stormIsle:0},
+            quests:{main:{id:'main_01',step:0,title:'O Despertar das Cinzas'},side:[]},
+            choices:{sparedVillage:null,executedKing:false,usedForbiddenMagic:false,freedDragons:false},
+            currentRegion:'arthon', gameTime:0, dragonsDiscovered:0, bossesDefeated:[], ending:null,
+            discoveredRecipes:['pocao_vida_grande'], lastSaveTime:null, dragonRiding:false
+        };
+
+        // ==================== CENA DE INICIALIZAÇÃO ====================
+        class BootScene extends Phaser.Scene {
+            constructor(){ super('BootScene'); }
+            preload(){
+                // Geração de texturas essenciais
+                const canvas = this.textures.createCanvas('player_down',32,32);
+                const ctx = canvas.getContext();
+                ctx.fillStyle='#3a3a3a'; ctx.fillRect(10,6,12,18);
+                ctx.fillStyle='#1a1a1a'; ctx.fillRect(8,24,16,8);
+                ctx.fillStyle='#6b3a2a'; ctx.fillRect(12,2,8,6);
+                ctx.fillStyle='#c9a84c'; ctx.fillRect(10,8,4,4);
+                canvas.refresh();
+
+                const heartCanvas = this.textures.createCanvas('heart_full',16,16);
+                const hc = heartCanvas.getContext();
+                hc.fillStyle='#cc0000'; hc.fillRect(4,3,8,10);
+                heartCanvas.refresh();
+            }
+            create(){
+                this.cameras.main.fadeIn(500);
+                this.time.delayedCall(500, ()=> this.scene.start('MenuScene'));
+            }
         }
+
+        // ==================== MENU PRINCIPAL ====================
+        class MenuScene extends Phaser.Scene {
+            constructor(){ super('MenuScene'); }
+            create(){
+                const {width,height} = this.cameras.main;
+                this.cameras.main.setBackgroundColor('#0a0a0a');
+
+                // Título centralizado
+                this.add.text(width/2, height/2 - 80, 'REINO\nDAS\nCINZAS', {
+                    fontSize:'48px', color:'#c9a84c', stroke:'#000', strokeThickness:8, align:'center', lineSpacing:6
+                }).setOrigin(0.5);
+
+                // Subtítulo
+                this.add.text(width/2, height/2 + 20, 'O Herdeiro das Cinzas', {
+                    fontSize:'18px', color:'#8b0000', stroke:'#000', strokeThickness:4
+                }).setOrigin(0.5);
+
+                // Botão de iniciar
+                const startBtn = this.add.text(width/2, height/2 + 100, '⚔️ INICIAR JORNADA', {
+                    fontSize:'24px', color:'#d4c48a', stroke:'#000', strokeThickness:6, padding:{x:20,y:10}
+                }).setOrigin(0.5).setInteractive({useHandCursor:true});
+
+                startBtn.on('pointerover', ()=> startBtn.setColor('#ffffff'));
+                startBtn.on('pointerout', ()=> startBtn.setColor('#d4c48a'));
+                startBtn.on('pointerdown', ()=>{
+                    this.cameras.main.fadeOut(500);
+                    this.time.delayedCall(500, ()=> this.scene.start('GameScene'));
+                });
+            }
+        }
+
+        // ==================== JOGO PRINCIPAL ====================
+        class GameScene extends Phaser.Scene {
+            constructor(){ super('GameScene'); }
+            create(){
+                const {width,height} = this.cameras.main;
+                this.cameras.main.setBackgroundColor('#1a1a2e');
+                this.cameras.main.fadeIn(500);
+
+                // Mundo simples
+                this.player = this.physics.add.sprite(width/2, height/2 + 100, 'player_down');
+                this.player.setCollideWorldBounds(true);
+                this.player.hp = GameState.playerHP;
+                this.player.maxHp = GameState.playerMaxHP;
+
+                // Corações de vida (HUD simples)
+                this.hearts = [];
+                for(let i=0;i<this.player.maxHp;i++){
+                    const heart = this.add.image(20 + i*20, 20, 'heart_full').setScrollFactor(0);
+                    this.hearts.push(heart);
+                }
+
+                // Controles
+                this.cursors = this.input.keyboard.createCursorKeys();
+
+                // Texto de boas-vindas centralizado
+                this.add.text(width/2, height/2 - 50, 'Eldoria', {
+                    fontSize:'32px', color:'#c9a84c', stroke:'#000', strokeThickness:6
+                }).setOrigin(0.5);
+
+                this.add.text(width/2, height/2 + 30, 'Use as SETAS para mover o herói', {
+                    fontSize:'14px', color:'#cccccc', stroke:'#000', strokeThickness:3
+                }).setOrigin(0.5);
+            }
+
+            update(){
+                if(this.cursors.left.isDown) this.player.x -= 3;
+                if(this.cursors.right.isDown) this.player.x += 3;
+                if(this.cursors.up.isDown) this.player.y -= 3;
+                if(this.cursors.down.isDown) this.player.y += 3;
+
+                // Atualiza corações
+                this.hearts.forEach((heart,i)=>{
+                    heart.setTexture(i < this.player.hp ? 'heart_full' : 'heart_empty');
+                });
+            }
+        }
+
+        // ==================== INICIALIZAÇÃO DO JOGO ====================
+        const config = {
+            type: Phaser.AUTO,
+            parent: 'game-container',
+            width: GAME_WIDTH,
+            height: GAME_HEIGHT,
+            pixelArt: true,
+            roundPixels: true,
+            scale: {
+                mode: Phaser.Scale.FIT,
+                autoCenter: Phaser.Scale.CENTER_BOTH,
+                width: GAME_WIDTH,
+                height: GAME_HEIGHT
+            },
+            physics: {
+                default: 'arcade',
+                arcade: { gravity: { y: 0 }, debug: false }
+            },
+            scene: [BootScene, MenuScene, GameScene],
+            backgroundColor: '#0a0a0a'
+        };
+
+        const game = new Phaser.Game(config);
     </script>
 </body>
 </html>
